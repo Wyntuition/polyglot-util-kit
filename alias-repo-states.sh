@@ -1,0 +1,1 @@
+alias repos='./repo-states.sh'
