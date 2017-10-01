@@ -1,1 +1,1 @@
-alias repos='./repo-states.sh'
+alias repos='$(pwd)/repo-states.sh'
