@@ -8,9 +8,9 @@ DECLARE
 BEGIN
     FOR rec IN 
         (SELECT * FROM information_schema.views
-        WHERE table_schema = 'dms_vis')
+        WHERE table_schema = 'public')
     LOOP
-    	EXECUTE format('drop VIEW if exists %I', rec.table_name);
+    	EXECUTE format('drop VIEW if exists public.%I', rec.table_name);
     END LOOP;
 END;
 $func$
