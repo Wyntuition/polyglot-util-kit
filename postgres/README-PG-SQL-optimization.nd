@@ -1,12 +1,13 @@
 # Notes on PG Optimization
 
 TODO
-what is vaccuming strategy?
-sequenial, index, table scans, etc?
-what is a hash join postgres
-what is toast in pg? https://www.postgresql.org/docs/9.1/static/storage-toast.html
-PG database page layout https://www.postgresql.org/docs/9.1/static/storage-page-layout.html
-Review db core concepts and add to perf op doc
+-how does pg execute sql statements? It looks kind of async based on final count info coming after new scripts start
+-what is vaccuming strategy?
+-sequenial, index, table scans, etc?
+-what is a hash join postgres
+-what is toast in pg? https://www.postgresql.org/docs/9.1/static/storage-toast.html
+-PG database page layout https://www.postgresql.org/docs/9.1/static/storage-page-layout.html
+-Review db core concepts and add to perf op doc
 
 ## Part I. Finding slow statements
 
@@ -24,6 +25,10 @@ Add something like this to `postgresql.conf` & restart since it uses shared memo
 
   pg_stat_statements.max = 10000
   pg_stat_statements.track = all
+  ```
+
+  ```sql
+  SELECT * FROM pg_stat_statements ORDER BY total_time DESC;
   ```
 
 ### auto_explain
@@ -177,6 +182,7 @@ if there are not many rows in a table (like in a development database), Postgres
 
 REFERENCES:
 
+Tuning overall
 https://www.geekytidbits.com/performance-tuning-postgres/
 
 
