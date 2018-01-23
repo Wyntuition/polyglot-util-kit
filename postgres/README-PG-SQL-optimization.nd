@@ -1,0 +1,188 @@
+# Notes on PG Optimization
+
+TODO
+what is vaccuming strategy?
+sequenial, index, table scans, etc?
+what is a hash join postgres
+what is toast in pg? https://www.postgresql.org/docs/9.1/static/storage-toast.html
+PG database page layout https://www.postgresql.org/docs/9.1/static/storage-page-layout.html
+Review db core concepts and add to perf op doc
+
+## Part I. Finding slow statements
+
+### pg_stats_statements
+
+Module that collects metrics and provides a view. Focus on **total_time* first.
+
+https://www.postgresql.org/docs/9.4/static/pgstatstatements.html
+
+Add something like this to `postgresql.conf` & restart since it uses shared memory:
+
+  ```
+  # postgresql.conf
+  shared_preload_libraries = 'pg_stat_statements'
+
+  pg_stat_statements.max = 10000
+  pg_stat_statements.track = all
+  ```
+
+### auto_explain
+
+The auto_explain module is also helpful for finding slow queries but has 2 distinct advantages: it logs the actual execution plan and supports logging nested statements using the log_nested_statements option. Nested statements are those statements that are executed inside a function. If your application uses many functions, auto_explain is invaluable for getting detailed execution plans.
+
+The log_min_duration option controls which query execution plans are logged, based on how long they perform. For example, if you set this to 1000, all statments that run longer than 1 second will be logged.
+
+### Index tuning
+
+1. Turn on Postgres Statistics Collector. Turning this collector on gives you tons of pg_stat_... views which contain all the goodness. In particular, I have found it to be particularly useful for finding missing and unused indexes
+
+### Missing indexes
+
+Missing indexes can be one of the easiest solutions to increasing query performance. However, they are not a silver bullet and should be used properly (more on that later). If you have The Statistics Collector turned on, you can run the following query (source).
+
+  ```sql
+  SELECT
+    relname,
+    seq_scan - idx_scan AS too_much_seq,
+    CASE
+      WHEN
+        seq_scan - idx_scan > 0
+      THEN
+        'Missing Index?'
+      ELSE
+        'OK'
+    END,
+    pg_relation_size(relname::regclass) AS rel_size, seq_scan, idx_scan
+  FROM
+    pg_stat_all_tables
+  WHERE
+    schemaname = 'public'
+    AND pg_relation_size(relname::regclass) > 80000
+  ORDER BY
+    too_much_seq DESC;
+  ```
+
+This finds tables that have had more Sequential Scans than Index Scans, a telltale sign that an index will usually help. This isn’t going to tell you which columns to create the index on so that will require a bit more work. However, knowing which table(s) need them is a good first step.
+
+### Unused indexes
+
+Having unused indexes can negatively affect write performance they must be updated after write (INSERT / UPDATE / DELETE) operations. So, adding an index is a balancing act because they can speed up reading of data (if created properly) but will slow down write operations. To find unused indexes you can run the following command:
+
+```sql
+SELECT
+  indexrelid::regclass as index,
+  relid::regclass as table,
+  'DROP INDEX ' || indexrelid::regclass || ';' as drop_statement
+FROM
+  pg_stat_user_indexes
+  JOIN
+    pg_index USING (indexrelid)
+WHERE
+  idx_scan = 0
+  AND indisunique is false;
+```
+
+## Part 2. Figuring out why identified statements are slow
+
+### Explain - shows execution plan; how the tables referened **will be scanned**
+
+- sequential scans
+- index scans
+- [?] etc
+- What join algorithms used (if multiple tables are referenced)
+
+1. use analyze option as it gives more accurate results by executing instead of just estimating the statement. Note it will not rollback non-queries so you could use:
+
+  ```sql
+  BEGIN;
+  EXPLAIN ANALYZE ...;
+  ROLLBACK;
+  ```
+
+Each indented block is a node (logical unit of work / step) with a cost and execution time. The costs and times of each node are cumulative and roll up all child nodes, so drill down looking at the child nodes.
+
+NOTE, running EXPLAIN ANALYZE on a query can sometimes take significantly longer than executing the query normally. The amount of overhead depends on the nature of the query, as well as the platform being used. The worst case occurs for plan nodes that in themselves require very little time per execution, and on machines that have relatively slow operating system calls for obtaining the time of day.
+
+1. Cost - first # is start up cost (before first record can be retrived), second # is cost incurred to process the entire node (start to finish).
+
+The **Most critical metric** is the **estimated execution cost** - the planner's guess at how long it will take to run the statement (measured in cost units that are arbitrary, but conventionally mean disk page fetches).
+  - two numbers are shown: the start-up cost before the first row can be returned, and the total cost to return all the rows
+  - **total cost** is often most useful
+
+
+
+
+The cost is effectively how much work PostgreSQL estimates it will have to do to run the statement. This number is not how much time is required, although there is usually direct correlation to time required for execution. Cost is a combination of 5 work components used to estimate the work required: sequential fetch, non-sequential (random) fetch, processing of row, processing operator (function), and processing index entry. The cost represents I/O and CPU activity and the important thing to know here is that a relatively higher cost means PostgresSQL thinks it will have to do more work. The optimizer makes its decision on which execution plan to use based on the the cost. Lower costs are preferred by the optimizer.
+
+1. Actual time - first # is milliseconds of startup time, secondn # is time taken to process the entire node.
+
+READ MORE:
+http://www.depesz.com/2013/04/16/explaining-the-unexplainable/
+https://wiki.postgresql.org/images/4/45/Explaining_EXPLAIN.pdf
+
+Look for a large variance between estimated rows and actual rows in the EXPLAIN statement. If the count is very different, the table statistics could be outdated and PostgreSQL is estimating cost using inaccurate statistics. For example: Limit (cost=282.37..302.01 rows=93 width=22) (actual time=34.35..49.59 rows=2203 loops=1). The estimated row count was 93 and the actual was 2,203. Therefore, it is likely making a bad plan decision. You should review your vacuuming strategy and ensure ANALYZE is being run frequently enough.
+
+## Part 3. Tweaking statements
+
+Indexes
+Eliminate Sequential Scans (Seq Scan) by adding indexes (unless table size is small)
+If using a multicolumn index, make sure you pay attention to order in which you define the included columns - More info
+Try to use indexes that are highly selective on commonly-used data. This will make their use more efficient.
+
+WHERE clause
+Avoid LIKE
+Avoid function calls in WHERE clause
+Avoid large IN() statements
+
+JOINs
+When joining tables, try to use a simple equality statement in the ON clause (i.e. a.id = b.person_id). Doing so allows more efficient join techniques to be used (i.e. Hash Join rather than Nested Loop Join)
+Convert subqueries to JOIN statements when possible as this usually allows the optimizer to understand the intent and possibly chose a better plan
+Use JOINs properly: Are you using GROUP BY or DISTINCT just because you are getting duplicate results? This usually indicates improper JOIN usage and may result in a higher costs
+If the execution plan is using a Hash Join it can be very slow if table size estimates are wrong. Therefore, make sure your table statistics are accurate by reviewing your vacuuming strategy
+Avoid correlated subqueries where possible; they can significantly increase query cost
+Use EXISTS when checking for existence of rows based on criterion because it “short-circuits” (stops processing when it finds at least one match)
+
+General guidelines
+Do more with less; CPU is faster than I/O
+Utilize Common Table Expressions and temporary tables when you need to run chained queries
+Avoid LOOP statements and prefer SET operations
+Avoid COUNT(*) as PostgresSQL does table scans for this (versions <= 9.1 only)
+Avoid ORDER BY, DISTINCT, GROUP BY, UNION when possible because these cause high startup costs
+
+
+
+
+
+
+
+
+
+
+
+
+## Postgres Concepts
+
+- Database Page Layout()
+
+### A note about statistics on development environments
+
+Relying upon statistics generated from a local development database can be problematic. Ideally you are able to pull the above statistics from your production machine or generate them from a restored production backup. Why? Environmental factors can and do change the way Postgres query optimizer works. Two examples:
+
+when a machine has less memory PostgreSQL may not be able to perform a Hash Join when otherwise it would be able to and would make the join faster.
+if there are not many rows in a table (like in a development database), PostgresSQL may chose to do Sequential Scans on a table rather than utilize an available index. When table sizes are small, a Seq Scan can be faster. (Note: you can run SET enable_seqscan = OFF; in a session to get the optimizer to prefer using indexes even when a Sequential Scan may be faster. This is useful when working with development databases that do not have much data in them)
+
+## Current results
+
+
+
+REFERENCES:
+
+https://www.geekytidbits.com/performance-tuning-postgres/
+
+
+Explain
+https://www.postgresql.org/docs/9.3/static/sql-explain.html
+https://www.depesz.com/2013/04/16/explaining-the-unexplainable/
+https://wiki.postgresql.org/images/4/45/Explaining_EXPLAIN.pdf
+
+http://use-the-index-luke.com/sql/where-clause/the-equals-operator/concatenated-keys
