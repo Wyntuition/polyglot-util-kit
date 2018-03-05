@@ -1,0 +1,196 @@
+-- Reset stats
+select pg_stat_reset();
+
+-- Query perf stats
+select total_time, * FROM pg_stat_statements
+where query not like '%pg_stat_database%' and query not like '%explain%' and query not like '%pg_database%' 
+and query like '%document_category%'
+order by total_time desc;
+
+select * from pg_stat_database;
+delete from pg_stat_all_tables where schemaname = 'local_mod'
+
+-- Init pg_stat_statements extension
+CREATE EXTENSION pg_stat_statements;
+\x
+SELECT query, calls, total_time, rows, 100.0 * shared_blks_hit /
+
+-- Activity info
+select * from pg_stat_activity 
+where query like '%dms_vis%'
+order by pid desc;
+SELECT
+          datname, 
+          usename, 
+          application_name, 
+          now()-backend_start AS "Session duration", 
+          pid, 
+          query 
+        FROM 
+          pg_stat_activity 
+        WHERE 
+          state='active' 
+        --AND wait_event IS NOT NULL; 
+        ORDER BY pid DESC
+        
+-- PG obj tables
+select * from pg_index
+select * from pg_indexes where schemaname='local_mod'
+select * from pg_class
+select * from pg_catalog.pg_namespace
+select * from pg_namespace
+select * from information_schema.tables
+
+-- Index info
+select * from pg_stat_user_indexes
+
+-- Transaction info
+SELECT
+   (SELECT sum(xact_commit) + sum(xact_rollback) FROM pg_stat_database WHERE datname = (SELECT datname FROM pg_database WHERE oid = 1)) AS "Transactions",
+   (SELECT sum(xact_commit) FROM pg_stat_database WHERE datname = (SELECT datname FROM pg_database WHERE oid = 1)) AS "Commits",
+   (SELECT sum(xact_rollback) FROM pg_stat_database WHERE datname = (SELECT datname FROM pg_database WHERE oid = 1)) AS "Rollbacks"
+
+-- Export perf info
+COPY (SELECT * FROM pg_stat_statements ORDER BY total_time DESC) to '/Users/etl-metrics1.csv' CSV;
+COPY (SELECT * FROM pg_stat_statements ORDER BY total_time DESC) TO '/file.csv' DELIMITER ',' CSV HEADER;
+
+-- Indexes suggested
+SELECT
+    relname,
+    seq_scan - idx_scan AS too_much_seq,
+    CASE
+      WHEN
+        seq_scan - idx_scan > 0
+      THEN
+        'Missing Index?'
+      ELSE
+        'OK'
+    END,
+    pg_relation_size(relname::regclass) AS rel_size, seq_scan, idx_scan
+  FROM
+    pg_stat_all_tables
+  WHERE
+    schemaname = 'local_mod'
+    AND pg_relation_size(relname::regclass) > 80000
+  ORDER BY
+    too_much_seq DESC;
+
+-- Create indexes script
+    select 
+    replace(pg_get_indexdef(format('%I.%I', schemaname, indexname)::regclass), ' INDEX ', ' INDEX IF NOT EXISTS ')||';' as ddl
+	, 'DROP INDEX ' || (format('%I.%I', schemaname, indexname)::regclass)||';'
+    from pg_indexes
+    where schemaname = 'local_mod' and indexdef NOT LIKE '%pkey%'
+
+-- List actual indexes
+
+
+-- DROP INDEXES IN SCHEMA AT LOOP
+DO
+$$BEGIN
+   EXECUTE (
+   SELECT 'DROP INDEX ' || string_agg(indexrelid::regclass::text, ', ')
+   FROM   pg_index  i
+   LEFT   JOIN pg_depend d ON d.objid = i.indexrelid
+                          AND d.deptype = 'i'
+   JOIN pg_class as c ON c.oid = i.indexrelid
+   JOIN pg_namespace n on n.oid = c.relnamespace
+   WHERE n.nspname = 'local_mod'
+       AND    d.objid IS NULL                                -- no internal dependency
+   );
+END$$;
+
+-- DROP INDEXES IN SCHEMA AT LOOP v2
+CREATE OR REPLACE FUNCTION drop_all_indexes() RETURNS INTEGER AS $$
+DECLARE
+  i RECORD;
+BEGIN
+  FOR i IN 
+    (SELECT relname FROM pg_class
+       -- exclude all pkey, exclude system catalog which starts with 'pg_'
+      WHERE relkind = 'i' AND relname NOT LIKE '%_pkey%' AND relname NOT LIKE 'pg_%')
+  LOOP
+    -- RAISE INFO 'DROPING INDEX: %', i.relname;
+    EXECUTE 'DROP INDEX ' || i.relname;
+  END LOOP;
+RETURN 1;
+END;
+$$ LANGUAGE plpgsql;
+ 
+SELECT drop_all_indexes();
+
+
+-- DROP INDEXES GENERATE SCRIPT v1
+SELECT
+  indexrelid::regclass as index,
+  relid::regclass as table,
+  'DROP INDEX ' || indexrelid::regclass || ';' as drop_statement
+FROM
+  pg_stat_user_indexes
+  JOIN
+    pg_index USING (indexrelid)
+WHERE
+  schemaname = 'local_mod'
+  AND idx_scan = 0
+  AND indisunique is false;
+
+-- CREATE & DROP INDEXES v2
+SELECT
+  indexrelid::regclass as index,
+  relid::regclass as table,
+  'DROP INDEX ' || indexrelid::regclass || ';' as drop_statement
+  --,replace(pg_get_indexdef(format('%I.%I', schemaname, indexrelid)::regclass), ' INDEX ', ' INDEX IF NOT EXISTS ')||';' as ddl
+FROM
+  pg_stat_user_indexes
+  JOIN pg_index USING (indexrelid)
+  --JOIN pg_indexes pi ON pg_index.indrelid = pi.tablename::regclass::oid
+WHERE
+  schemaname = 'local_mod'
+  AND idx_scan = 0
+  AND indisunique is false;
+  
+-- drop constraints  
+copy (
+    SELECT 'ALTER TABLE '||nspname||'.\"'||relname||'\" DROP CONSTRAINT \"'||conname||'\";'
+    FROM pg_constraint
+    INNER JOIN pg_class ON conrelid=pg_class.oid
+    INNER JOIN pg_namespace ON pg_namespace.oid=pg_class.relnamespace
+    INNER JOIN information_schema.tables t ON t.table_name = relname
+    WHERE t.table_schema = 'local_mod' and conname NOT LIKE '%pkey%'
+    ORDER BY CASE WHEN contype='f' THEN 0 ELSE 1 END,contype,nspname,relname,conname
+) to '/my-temp/droppingConstraints.sql';
+
+-- add back constraints
+copy (
+    SELECT 'ALTER TABLE '||nspname||'.\"'||relname||'\" ADD CONSTRAINT \"'||conname||'\" '|| pg_get_constraintdef(pg_constraint.oid)||';'
+    FROM pg_constraint
+    INNER JOIN pg_class ON conrelid=pg_class.oid
+    INNER JOIN pg_namespace ON pg_namespace.oid=pg_class.relnamespace
+    INNER JOIN information_schema.tables t ON t.table_name = relname
+    WHERE t.table_schema = 'local_mod' and conname NOT LIKE '%pkey%'
+    ORDER BY CASE WHEN contype='f' THEN 0 ELSE 1 END DESC,contype DESC,nspname DESC,relname DESC,conname DESC
+) to '<path-to-save>/addingConstraint.sql';
+
+
+-- QUERY LOCKS
+SELECT
+  *,
+  COALESCE(blockingl.relation::regclass::text, blockingl.locktype) as locked_item,
+  now() - blockeda.query_start AS waiting_duration,
+  blockeda.pid AS blocked_pid,
+  --blockeda.query as blocked_query,
+  blockedl.mode as blocked_mode,
+  blockinga.pid AS blocking_pid,
+  blockinga.query as blocking_query,
+  blockingl.mode as blocking_mode
+FROM pg_catalog.pg_locks blockedl
+JOIN pg_stat_activity blockeda ON blockedl.pid = blockeda.pid
+JOIN pg_catalog.pg_locks blockingl ON(
+  ( (blockingl.transactionid=blockedl.transactionid) OR
+  (blockingl.relation=blockedl.relation AND blockingl.locktype=blockedl.locktype)
+  ) AND blockedl.pid != blockingl.pid)
+JOIN pg_stat_activity blockinga ON blockingl.pid = blockinga.pid
+  AND blockinga.datid = blockeda.datid
+WHERE NOT blockedl.granted
+AND blockinga.datname = current_database()
+
