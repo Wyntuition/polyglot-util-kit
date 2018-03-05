@@ -181,7 +181,7 @@ SELECT
   --blockeda.query as blocked_query,
   blockedl.mode as blocked_mode,
   blockinga.pid AS blocking_pid,
-  blockinga.query as blocking_query,
+  blockinga.query as blocking_query,`
   blockingl.mode as blocking_mode
 FROM pg_catalog.pg_locks blockedl
 JOIN pg_stat_activity blockeda ON blockedl.pid = blockeda.pid
@@ -194,3 +194,4 @@ JOIN pg_stat_activity blockinga ON blockingl.pid = blockinga.pid
 WHERE NOT blockedl.granted
 AND blockinga.datname = current_database()
 
+`
