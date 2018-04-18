@@ -1,0 +1,10 @@
+FROM node:9.6.1
+
+RUN mkdir /opt/app
+WORKDIR /opt/app
+
+ENV PATH /opt/app/node_modules/.bin:$PATH
+
+RUN npm install -g create-react-app@1.5.2
+
+EXPOSE 3000
