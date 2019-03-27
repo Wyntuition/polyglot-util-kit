@@ -1,0 +1,1 @@
+pg_dump --schema-only --no-owner the_database_name > create_the_tables.sql
