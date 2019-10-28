@@ -1,7 +1,17 @@
 
+-- SQL STATEMENTS RUNNING
 
+--SELECT pid, age(clock_timestamp(), query_start), usename, query
+SELECT * 
+FROM pg_stat_activity 
+WHERE 1=1
+--and query != '<IDLE>' 
+and state != 'idle'
+AND query NOT ILIKE '%pg_stat_activity%' 
+ORDER BY query_start desc;
 
 -- QUERY LOCKS
+
 SELECT
   *,
   COALESCE(blockingl.relation::regclass::text, blockingl.locktype) as locked_item,
