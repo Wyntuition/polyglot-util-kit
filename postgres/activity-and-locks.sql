@@ -32,3 +32,33 @@ JOIN pg_stat_activity blockinga ON blockingl.pid = blockinga.pid
   AND blockinga.datid = blockeda.datid
 WHERE NOT blockedl.granted
 AND blockinga.datname = current_database()
+
+
+
+select pg_describe_object(classid, objid, objsubid)
+from pg_depend 
+where refobjid = 'initial.initial_request'::regclass and deptype = 'n';
+
+with recursive chain as (
+    select classid, objid, objsubid, conrelid
+    from pg_depend d
+    join pg_constraint c on c.oid = objid
+    where refobjid = 'initial.initial_request'::regclass and deptype = 'n'
+union all
+    select d.classid, d.objid, d.objsubid, c.conrelid
+    from pg_depend d
+    join pg_constraint c on c.oid = objid
+    join chain on d.refobjid = chain.conrelid and d.deptype = 'n'
+    )
+select pg_describe_object(classid, objid, objsubid), pg_get_constraintdef(objid)
+from chain;
+
+
+ALTER ROLE wbvandev WITH ENCRYPTED PASSWORD 'HelloWhere101!' VALID UNTIL 'infinity'
+
+
+-- DATABASE SIZES
+
+select datname, pg_size_pretty(pg_database_size(datname))
+from pg_database
+order by pg_database_size(datname) desc;
