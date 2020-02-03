@@ -28,8 +28,10 @@ fi
 #pg_dump --file $FILENAME --host $HOST --port "5432" --username $PG_USERNAME --verbose --format=c -d $DATABASE_NAME -n $SCHEMA_NAME
 
 ### includes all database and other objects
-pg_dumpall -U postgres -h $HOST -p 5434 --clean --file $FILENAME
+pg_dumpall -U $PG_USERNAME -h $HOST -p 5432 -d $DATABASE_NAME --clean --file $FILENAME
 
 ### Copy it to S3 after backup
 # aws s3 cp $FILENAME s3://defic-svc-db-backups
 # aws s3 ls s3://defic-svc-db-backups
+
+
