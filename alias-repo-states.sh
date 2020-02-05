@@ -1,1 +1,0 @@
-alias repos='$(pwd)/repo-states.sh'
