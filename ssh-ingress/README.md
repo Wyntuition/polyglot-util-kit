@@ -30,7 +30,7 @@ Set the `INGRESS_BASTION_IP` environment variable on your host machine of your b
 
 Set the `INGRESS_SSH_KEY` environment variable on your host machine to the location of your SSH key. This file will be copied into the container at start up and used to establish SSH tunnels to your nonprod bastion.
 
-**Note:** All `*.pem` files are ignored by Git via the `.gitignore` file. Please be *very* careful that you don't manage to add your key to source control anyway (such as by checking `git status` prior to commits).
+**Note:** All `*.pem` files are ignored by Git via the `.gitignore` file. Please be _very_ careful that you don't manage to add your key to source control anyway (such as by checking `git status` prior to commits).
 
 ### Generate Self-signed SSL Certificate
 
@@ -47,14 +47,16 @@ This should prevent browsers from showing you an invalid certificate warning.
 ### Build and Run ingress
 
 ingress is run as a Docker container, using the image created by the [Dockerfile](Dockerfile) in the root directory.
-Docker's **docker-compose** tool is used to simplify the local development experience. ingress has two services, **eve-ingress** and ***save-ingress***, in [docker-compose.yml](docker-compose.yml).
+Docker's **docker-compose** tool is used to simplify the local development experience. ingress has two services, **eve-ingress** and **_save-ingress_**, in [docker-compose.yml](docker-compose.yml).
 
 Use the following command to run the container, replacing `SERVICE` with either `eve-ingress` or `save-ingress`:
 
-``` bash
+```bash
 docker-compose up -d SERVICE
 ```
+
 ### SAVE - Edit /etc/hosts
+
 Edit the /etc/hosts file on your local computer to include the following lines:
 
 ```
@@ -63,7 +65,7 @@ Edit the /etc/hosts file on your local computer to include the following lines:
 127.0.0.1	def.com
 ```
 
-###  How To Use
+### How To Use
 
 First, run `docker logs SERVICE`. The initial output will show something like this:
 

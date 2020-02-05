@@ -1,0 +1,39 @@
+server_names_hash_bucket_size  128;
+server {
+    listen 8443;
+    server_name _;
+    deny all;
+    access_log /var/log/nginx/default.log;
+
+    ssl on;
+    ssl_certificate /app/ingress.crt;
+    ssl_certificate_key /app/ingress.key;
+    ssl_session_cache shared:SSL:10m;
+    ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;
+    ssl_ciphers HIGH:!aNULL:!eNULL:!EXPORT:!CAMELLIA:!DES:!MD5:!PSK:!RC4;
+    ssl_prefer_server_ciphers on;
+}
+
+<% File.open("./envs/#{ENV['INGRESS_TYPE']}.env") do |f| %>
+  <% f.each_with_index do |line, idx| %>
+
+server {
+  listen 8443;
+  server_name <%= line.chomp %>;
+  access_log /var/log/nginx/<%= line.chomp %>.log;
+
+  ssl on;
+  ssl_certificate /app/ingress.crt;
+  ssl_certificate_key /app/ingress.key;
+  ssl_session_cache shared:SSL:10m;
+  ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;
+  ssl_ciphers HIGH:!aNULL:!eNULL:!EXPORT:!CAMELLIA:!DES:!MD5:!PSK:!RC4;
+  ssl_prefer_server_ciphers on;
+
+  location / {
+    proxy_set_header Origin https://<%= line.chomp %>;
+    proxy_pass https://<%= "#{line.chomp}:#{ENV['INGRESS_START_PORT'].to_i + idx + 1000}" %>;
+  }
+}
+  <% end %>
+<% end %>

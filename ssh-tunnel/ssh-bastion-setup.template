@@ -1,0 +1,38 @@
+#!/bin/sh
+
+# USAGE: 
+#
+#   1. Set these variables in a new file called in this directory called '.env-bastion'
+#
+#       export BASTION_IP=10.193.181.202
+#       export PATH_TO_PRIVATE_KEY=~/.ssh/wv-gfe-prod.pem
+#
+#   2. Call './ssh-bastion-setup'. 
+#
+#       It will set up for ssh bastion tunnels for various environments. 
+#       You can now access the target resources at via localhost:localPort. 
+#       You only have to update BASTION_IP in .env-bastion & re-run this as that changes. 
+#
+#       EXAMPLE USE: in a database IDE, you can fill username/pw/database name/etc as normal, 
+#       but the host will localhost and the port will be the local port set below.
+#
+# NOTES:
+#
+#   - View mappings with: sudo lsof -i -n  | grep ssh
+#   - Kill all ssh tunnels: pkill ssh
+
+source ./.env-bastion
+
+## PERF
+export DB_HOST=[Enter]
+export LOCAL_PORT=[Enter]
+export TARGET_PORT=[Enter]
+
+./ssh-bastion-tunnel.sh
+
+## PROD
+export DB_HOST=[Enter]
+export LOCAL_PORT=[Enter]
+export TARGET_PORT=[Enter]
+
+./ssh-bastion-tunnel.sh
