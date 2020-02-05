@@ -1,0 +1,1 @@
+openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes -keyout ingress.key -out ingress.crt -extensions san -config <(echo "[req]"; echo distinguished_name=req; echo "[san]"; echo subjectAltName=DNS:localhost,IP:127.0.0.1) -subj /CN=localhost

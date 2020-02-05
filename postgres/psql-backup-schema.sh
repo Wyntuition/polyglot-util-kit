@@ -24,7 +24,7 @@ DATABASE_NAME=postgres
 if [ $3 ]; then 
   DATABASE_NAME=$3
 fi
-SCHEMA_NAME=local_vis
+SCHEMA_NAME=local
 if [ $4 ]; then 
   SCHEMA_NAME=$4
 fi

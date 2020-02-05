@@ -16,7 +16,7 @@ FILENAME=postgres-backup-$DATE.sql
 if [ $4 ]; then 
   FILENAME=$4
 fi 
-SCHEMA_NAME=local_vis
+SCHEMA_NAME=local
 if [ $5 ]; then 
   FILENAME=$5
 fi

@@ -1,0 +1,56 @@
+version: '3'
+services:
+  eve-ingress:
+    container_name: ingress
+    image: ingress
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        http_proxy: ${http_proxy}
+        https_proxy: ${https_proxy}
+        no_proxy: ${no_proxy}
+    environment:
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: ${no_proxy}
+      INGRESS_TYPE: eve
+      INGRESS_START_PORT: 8443
+      INGRESS_BASTION_IP: ${INGRESS_BASTION_IP} # Environment variable of your bastion host
+    volumes:
+      - ${INGRESS_SSH_KEY}:/app/ssh_key.pem:ro # Environment variable pointing to your SSH key
+    ports:
+      - 8443:8443
+      - 8444:8444
+      - 8445:8445
+      - 8446:8446
+      - 8447:8447
+      - 8448:8448
+      - 8449:8449
+      - 8450:8450
+      - 8451:8451
+  save-ingress:
+    container_name: save-ingress
+    image: ingress
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        http_proxy: ${http_proxy}
+        https_proxy: ${https_proxy}
+        no_proxy: ${no_proxy}
+    environment:
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: ${no_proxy}
+      INGRESS_TYPE: save
+      INGRESS_START_PORT: 8443
+      INGRESS_BASTION_IP: ${INGRESS_BASTION_IP} # Environment variable of your bastion host
+    volumes:
+      - ${INGRESS_SSH_KEY}:/app/ssh_key.pem:ro # Environment variable pointing to your SSH key
+    ports:
+      - 127.0.0.1:443:8443
+networks:
+  default:
+    external:
+      name: my-network

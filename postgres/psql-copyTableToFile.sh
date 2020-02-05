@@ -4,7 +4,7 @@
 #
 # EXAMPLE:
 #
-#   ./export-data-via-psql.sh 'select * from dms_vis.cps_case_header'
+#   ./export-data-via-psql.sh 'select * from dms.cps_case_header'
 #
 # This will run that select statement and copy the rows into a CSV file called output.csv
 ##################################################################################################
