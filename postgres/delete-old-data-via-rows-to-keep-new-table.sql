@@ -1,3 +1,17 @@
+-- Some things to consider:
+--     batch size
+--     query analyzer 
+--     initial_response?? Resolution? Slow.
+--     toast? vacuum first?
+--     is it requerying the case number table each time, or is postgres smart enough to see all statements use it and cache it (would CTE do it?)
+--     drop ALL indexex
+--     gen new table with non-deleted?
+--     time in combining a few
+--     any missing indexes
+--     why initial_request so slow to delete?     
+--     delete all of 1 table at a time? Time    
+
+
 -- The LIKE clause to the CREATE TABLE statement is quite useful since this can automatically include all indexes, constraints, defaults, comments, and storage options. It does NOT include ownership or privileges however, so the one critical step in this piece is definitely #2 above. You can easily see a table’s privileges with the \dp option in psql. Also, explicitly obtaining the exclusive lock on both tables before doing the name switch ensures nothing weird happens during whatever brief moment could exist between the switch.
 
 CREATE TABLE public.notifications_new (LIKE public.notifications INCLUDING ALL);
