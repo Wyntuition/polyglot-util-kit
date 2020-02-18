@@ -73,3 +73,6 @@ SELECT nspname || '.' || relname AS "relation",
     AND nspname !~ '^pg_toast'
   ORDER BY pg_total_relation_size(C.oid) DESC
   LIMIT 20;
+
+  --Kill
+  SELECT pg_terminate_backend(<PID>);
