@@ -1,5 +1,8 @@
 #!/bin/bash
 
+alias toolkit='code ~/dev/toolkit'
+alias aliases='code ~/dev/toolkit/aliases.sh'
+
 # Can just put a ref to this in ~/.bashrc etc: source ~/dev/wyntuition.github.io/aliases.sh
 shopt -s expand_aliases
 
