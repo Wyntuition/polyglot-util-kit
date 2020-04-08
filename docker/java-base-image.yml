@@ -1,0 +1,16 @@
+FROM ubuntu:16.04
+
+USER root
+
+# Update and install packages
+RUN apt-get -y update \
+    && apt-get -y upgrade \
+    && apt-get dist-upgrade \
+    && apt-get install --no-install-recommends --no-install-suggests -y software-properties-common \
+    && apt-get -y update \
+    && apt-get install -y zip wget java-common
+
+# Install Java 11
+RUN wget https://corretto.aws/downloads/latest/amazon-corretto-11-x64-linux-jdk.tar.gz
+    
+ENV JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto
