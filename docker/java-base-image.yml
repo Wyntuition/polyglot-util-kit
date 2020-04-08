@@ -13,4 +13,8 @@ RUN apt-get -y update \
 # Install Java 11
 RUN wget https://corretto.aws/downloads/latest/amazon-corretto-11-x64-linux-jdk.tar.gz
     
+RUN wget -T 0 -q https://services.gradle.org/distributions/gradle-6.3-bin.zip && \
+    unzip gradle-6.3-bin.zip -d /opt && \
+    rm gradle-6.3-bin.zip
+
 ENV JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto
