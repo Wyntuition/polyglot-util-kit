@@ -18,3 +18,5 @@ RUN wget -T 0 -q https://services.gradle.org/distributions/gradle-6.3-bin.zip &&
     rm gradle-6.3-bin.zip
 
 ENV JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto
+
+USER nobody
